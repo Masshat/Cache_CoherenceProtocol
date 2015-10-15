@@ -14,6 +14,7 @@ public class MemWtiController implements MemController {
 
 	private enum FsmState {
 		FSM_IDLE,
+		FSM_WRITE_WORD,
 		FSM_READ_LINE,
 		FSM_DIR_UPDATE,
 		FSM_INVAL,
