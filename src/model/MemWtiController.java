@@ -156,8 +156,100 @@ public class MemWtiController implements MemController {
 	public void simulate1Cycle() {
 
 		switch (r_fsm_state) {
-			/* To complete */
+			/* Massine */
+		case FSM_IDLE:
+			if(! p_in_req.empty(this)){
+				getRequest();
+				if(m_req.getCmd()==cmd_t.READ_LINE){
+					r_fsm_state= FsmState.FSM_READ_LINE;
+					break;
+				}
+				else if(m_req.getCmd()==cmd_t.WRITE_WORD){
+					r_fsm_state = FsmState.FSM_WRITE_WORD;
+					break;
+				}
+			}
+			else if(! p_in_rsp.empty(this)){
+				getResponse();
+				if(m_rsp.getCmd()==cmd_t.INVAL){
+					r_fsm_state=FsmState.FSM_DIR_UPDATE;
+				}
+			}
+			break;
+		case FSM_READ_LINE:
+			m_ram.addCopy(m_req.getAddress(), m_req.getSrcid());
 			
+			r_fsm_state = FsmState.FSM_RSP_READ;
+			break;
+		case FSM_DIR_UPDATE:
+			
+			if(r_writer_has_copy){
+				if (m_ram.hasCopy(m_req.getAddress(), m_req.getSrcid())){
+				m_ram.removeAllCopies(m_req.getAddress());
+				m_ram.addCopy(m_req.getAddress(), m_req.getSrcid());
+				}else{
+				m_ram.removeAllCopies(m_req.getAddress());
+				}
+				r_fsm_state = FsmState.FSM_RSP_WRITE;
+				break;
+			}else{
+				m_ram.removeCopy(m_rsp.getAddress(), m_rsp.getSrcid());
+				r_fsm_state= FsmState.FSM_IDLE;
+			}
+			break;
+		case FSM_RSP_READ:
+			sendResponse(m_req.getAddress(), m_req.getSrcid(), cmd_t.RSP_READ_LINE, m_ram.getLine(m_req.getAddress()));
+			r_fsm_state = FsmState.FSM_IDLE;
+			break;
+		case FSM_INVAL:
+			m_req_copies_list=m_ram.getCopies(m_req.getAddress());
+			m_rsp_copies_list = new CopiesList();
+			m_req_copies_list.remove(m_req.getSrcid());
+			r_writer_has_copy=true;
+			r_fsm_state = FsmState.FSM_INVAL_SEND;
+			break;
+		case FSM_INVAL_WAIT:
+			if(! p_in_rsp.empty(this)){
+				getResponse();
+				m_rsp_copies_list.remove(m_rsp.getSrcid());
+				if(m_rsp_copies_list.nbCopies() == 0){
+					r_fsm_state = FsmState.FSM_DIR_UPDATE;
+				}
+				}
+			break;
+		case FSM_INVAL_SEND:
+			int next = m_req_copies_list.getNextOwner();
+			do{
+			Request request = new Request(m_req.getAddress(), next, this.getSrcid(),
+					cmd_t.INVAL, m_cycle, 2);
+			sendRequest(m_req.getAddress(), next, cmd_t.INVAL);
+			m_req_copies_list.remove(next);
+			m_rsp_copies_list.add(next);
+			next = m_req_copies_list.getNextOwner();
+			}while (next != -1);
+			m_req_copies_list= new CopiesList(m_rsp_copies_list);
+			r_fsm_state = FsmState.FSM_INVAL_WAIT;
+			break;
+		case FSM_WRITE_WORD:
+			//if (m_ram.nbCopies(m_req.getAddress()) !=1){
+			//r_fsm_state =FsmState.FSM_INVAL;
+			//}else {
+			//	r_fsm_state = FsmState.FSM_RSP_WRITE;
+			//}
+			m_ram.write(m_req.getAddress(), m_req.getData().get(0), m_req.getBe());
+			if (m_ram.nbCopies(m_req.getAddress()) ==1 && (!m_ram.getCopies(m_req.getAddress()).hasCopy(m_req.getSrcid()))){
+				r_fsm_state = FsmState.FSM_INVAL;
+			}else if (m_ram.nbCopies(m_req.getAddress()) > 1 ){
+				r_fsm_state = FsmState.FSM_INVAL;	
+			}else{
+				r_fsm_state= FsmState.FSM_RSP_WRITE;
+			}
+			break;
+		case FSM_RSP_WRITE:
+			sendResponse(m_req.getAddress(), m_req.getSrcid(), cmd_t.RSP_WRITE_WORD, null);
+			r_fsm_state =FsmState.FSM_IDLE;
+			break;
+			/* Massine */
 		default:
 			assert (false);
 			break;

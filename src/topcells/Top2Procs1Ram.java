@@ -123,6 +123,15 @@ public class Top2Procs1Ram implements Topcell {
 //		processors.get(1).addRead (0x00400014);
 //		processors.get(1).addWrite(0x0040001C, 4);
 //		processors.get(1).addRead (0x0040001C);
+		/*Our Test*/
+		processors.get(0).addRead (0x00400008);
+		processors.get(0).addWrite(0x00400008, 12);
+		processors.get(0).addRead (0x00400008);
+		processors.get(1).addRead (0x00400008);
+		processors.get(1).addRead (0x00400008);
+		processors.get(1).addRead (0x00400008);
+		processors.get(1).addRead (0x00400008);
+		processors.get(1).addRead (0x00400008);
 		
 	}
 

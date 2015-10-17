@@ -242,8 +242,70 @@ public class L1WtiController implements L1Controller {
 	public void simulate1Cycle() {
 		
 		switch (r_fsm_state) {
-			/* To complete */
-		
+			/* Massine */
+		case FSM_IDLE:
+			if(!p_in_iss_req.empty(this)){
+				getIssRequest();
+				if (m_iss_req.getCmd()== cmd_t.READ_WORD){
+					LineState state = new LineState();
+					List<Long> data = new ArrayList<Long>();
+
+					if(m_cache_l1.read(m_iss_req.getAddress(), data , state)){
+						sendIssResponse(m_iss_req.getAddress(), cmd_t.RSP_READ_WORD, data.get(0));
+					}else{
+						r_fsm_state = FsmState.FSM_MISS;
+						break;
+					}
+				}
+				else if (m_iss_req.getCmd() == cmd_t.WRITE_WORD){
+					LineState state = new LineState();
+					m_cache_l1.readDir(m_iss_req.getAddress(), state);
+					
+					if(state.state==cacheSlotState.VALID){
+						m_cache_l1.write(m_iss_req.getAddress(), 
+								m_iss_req.getData().get(0), m_iss_req.getBe());
+					}
+						r_fsm_state =  FsmState.FSM_SEND_WRITE;
+						break;
+				}
+			}
+			if(!p_in_req.empty(this)){
+				getRequest();
+				if(m_req.getCmd()==cmd_t.INVAL){
+					r_fsm_state = FsmState.FSM_INVAL;
+					break;
+				}
+			}
+			break;
+		case FSM_SEND_WRITE:
+			//p_out_req.pushBack(m_iss_req);
+			sendRequest(m_iss_req.getAddress(), cmd_t.WRITE_WORD, m_iss_req.getData().get(0), 
+					m_iss_req.getBe());
+			sendIssResponse(m_iss_req.getAddress(), cmd_t.RSP_WRITE_WORD, 0);
+			r_fsm_state = FsmState.FSM_IDLE;
+			break;
+		case FSM_MISS:
+			//p_out_req.pushBack(m_iss_req);
+			sendRequest(m_iss_req.getAddress(), cmd_t.READ_LINE, new Long (0), m_iss_req.getBe());
+			m_cache_l1.readSelect(m_iss_req.getAddress());
+			
+			r_fsm_state = FsmState.FSM_MISS_WAIT;
+			break;
+		case FSM_MISS_WAIT:
+			if(r_rsp_miss_ok){
+			m_cache_l1.setLine(m_iss_req.getAddress(), m_rsp.getData(), true);
+			r_rsp_miss_ok=false;
+			sendIssResponse(m_iss_req.getAddress(), cmd_t.RSP_READ_WORD, 
+					m_rsp.getData().get(((int)m_iss_req.getAddress() % m_words) ));
+			r_fsm_state = FsmState.FSM_IDLE;
+			}
+			break;
+		case FSM_INVAL:
+			m_cache_l1.inval(m_req.getAddress(), true);
+			sendResponse(m_req.getAddress(), m_req.getSrcid(), cmd_t.RSP_INVAL_CLEAN, null);
+			r_fsm_state= FsmState.FSM_IDLE;
+			break;
+			/* Massine */
 		default:
 			assert(false);
 			break;
