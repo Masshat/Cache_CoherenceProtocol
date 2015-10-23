@@ -39,6 +39,8 @@ public class Request {
 		RSP_INVAL_RO_DIRTY,
 		UPDATE,
 		RSP_UPDATE,
+		SYNC,
+		RSP_SYNC,
 	}
 
 	private long r_address;

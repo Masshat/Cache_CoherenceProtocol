@@ -20,5 +20,6 @@ public class Simul {
 
 		vue.setVisible(true);
 		vue.pack();
+		//vue.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 	}
 }

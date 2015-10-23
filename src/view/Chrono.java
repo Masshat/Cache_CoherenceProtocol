@@ -163,6 +163,9 @@ public class Chrono extends JPanel {
 		case RSP_INVAL_DIRTY:
 		case RSP_INVAL_RO_DIRTY:
 			return Color.orange;
+		case SYNC:
+		case RSP_SYNC:
+			return Color.GREEN;
 		}
 		System.out.println("No color for cmd : " + cmd);
 		return Color.black;

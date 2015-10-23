@@ -45,7 +45,12 @@ public class Processor implements Module {
 		p_out_req.pushBack(req);
 		r_nb_req++;
 	}
-
+	public void addSync() {
+				
+		Request req = new Request(0, m_id, m_id + L1MesiController.l1StartId, cmd_t.SYNC, r_cycle, 0, null, 0xF);
+		p_out_req.pushBack(req);
+		r_nb_req++;
+	}
 	void addNop() {
 		Request req = new Request(0, m_id, m_id + L1MesiController.l1StartId, cmd_t.NOP, r_cycle, 0, null, 0xF);
 		p_out_req.pushBack(req);

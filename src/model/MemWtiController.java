@@ -204,7 +204,7 @@ public class MemWtiController implements MemController {
 		case FSM_INVAL:
 			m_req_copies_list=m_ram.getCopies(m_req.getAddress());
 			m_rsp_copies_list = new CopiesList();
-			m_req_copies_list.remove(m_req.getSrcid());
+			m_req_copies_list.remove(m_req.getSrcid()); // non allocate
 			r_writer_has_copy=true;
 			r_fsm_state = FsmState.FSM_INVAL_SEND;
 			break;

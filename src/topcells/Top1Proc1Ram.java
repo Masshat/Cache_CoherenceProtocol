@@ -99,9 +99,11 @@ public class Top1Proc1Ram implements Topcell {
 		// Load requests
 		//processors.get(0).addRead(0x00400000);
 		processors.get(0).addWrite(0x00400000, 10);
-		processors.get(0).addRead(0x00400000);
-		//processors.get(0).addWrite(0x00001000, 5);
+		//processors.get(0).addRead(0x00400000);
+		processors.get(0).addWrite(0x00001000, 5);
 		//processors.get(0).addWrite(0x00001004, 6);
+		processors.get(0).addSync();
+		processors.get(0).addRead(0x00400000);
 	}
 
 	public void simulate1Cycle() {
