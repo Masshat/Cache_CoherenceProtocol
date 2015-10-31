@@ -278,7 +278,7 @@ public class L1WtiController implements L1Controller {
 					
 					if(state.state==cacheSlotState.VALID){
 						m_cache_l1.write(m_iss_req.getAddress(), 
-								m_iss_req.getData().get(0), m_iss_req.getBe());
+						m_iss_req.getData().get(0), m_iss_req.getBe());
 					}
 						r_fsm_state =  FsmState.FSM_SEND_WRITE;
 						break;
@@ -302,12 +302,11 @@ public class L1WtiController implements L1Controller {
 			break;
 		case FSM_SEND_WRITE:
 			r_fsm_prev_state = FsmState.FSM_SEND_WRITE;
-			sendRequest(m_iss_req.getAddress(), cmd_t.WRITE_WORD, m_iss_req.getData().get(0), 
-					m_iss_req.getBe());
+			sendRequest(m_iss_req.getAddress(), cmd_t.WRITE_WORD, m_iss_req.getData().get(0), m_iss_req.getBe());
 			write_en_cours++;
 			sendIssResponse(m_iss_req.getAddress(), cmd_t.RSP_WRITE_WORD, 0);
 			r_fsm_state = FsmState.FSM_IDLE;
-			break;
+			break;	
 		case FSM_MISS:
 			r_fsm_prev_state = FsmState.FSM_MISS;
 			sendRequest(m_iss_req.getAddress(), cmd_t.READ_LINE, new Long (0), m_iss_req.getBe());
