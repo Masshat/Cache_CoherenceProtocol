@@ -72,7 +72,7 @@ public class Top1Proc1Ram implements Topcell {
 		l1_caches = new Vector<L1Controller>(nb_procs);
 		processors = new Vector<Processor>(nb_procs);
 		for (int i = 0; i < nb_procs; i++) {
-			L1Controller l1Ctrl = new L1WtiController("L1 controller " + i, i, nways,
+			L1Controller l1Ctrl = new L1MesiController("L1 controller " + i, i, nways,
 					nsets, nwords, l1_mem_req, mem_l1_rsp, mem_l1_req,
 					l1_mem_rsp, iss_l1_req, l1_iss_rsp);
 			l1_caches.add(l1Ctrl);
@@ -88,7 +88,7 @@ public class Top1Proc1Ram implements Topcell {
 		
 		mem = new Vector<MemController>();
 		for (int i = 0; i < nb_rams; i++) {
-			MemController memCtrl = new MemWtiController("Mem controller " + i,
+			MemController memCtrl = new MemMesiController("Mem controller " + i,
 					i, // ram_id
 					nwords, seg_list, l1_mem_req, mem_l1_rsp, mem_l1_req,
 					l1_mem_rsp);
