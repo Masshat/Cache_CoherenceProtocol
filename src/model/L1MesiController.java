@@ -1,5 +1,6 @@
 package model;
 
+import java.lang.Thread.State;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -236,7 +237,162 @@ public class L1MesiController implements L1Controller {
 	public void simulate1Cycle() {
 		
 		switch (r_fsm_state) {
-			/* To complete */
+			/* Massine */
+		case FSM_IDLE:
+			r_fsm_prev_state= FsmState.FSM_IDLE;
+			if (! p_in_iss_req.empty(this)){
+				getIssRequest();
+				if (m_iss_req.getCmd()==cmd_t.READ_WORD){
+					LineState state = new LineState();
+					List<Long> data = new ArrayList<Long>();
+					if (m_cache_l1.read(m_iss_req.getAddress(), data, state)){
+						sendIssResponse(m_iss_req.getAddress(), cmd_t.RSP_READ_WORD, data.get(0));
+					}else{
+						r_fsm_state = FsmState.FSM_MISS;
+						break;
+					}
+				}
+				if (m_iss_req.getCmd()==cmd_t.WRITE_WORD){
+					LineState state = new LineState();
+					m_cache_l1.readDir(m_iss_req.getAddress(), state);
+					if (state.exclu){
+						r_fsm_prev_state=FsmState.FSM_IDLE;
+						sendIssResponse(m_iss_req.getAddress(), cmd_t.RSP_WRITE_WORD, 0);
+						state.dirty= true;
+						m_cache_l1.writeDir(m_iss_req.getAddress(), state);
+						m_cache_l1.write(m_iss_req.getAddress(), m_iss_req.getData().get(0), m_iss_req.getBe());
+				
+						break;
+
+					}else{
+						r_fsm_prev_state=FsmState.FSM_IDLE;
+						r_fsm_state=FsmState.FSM_MISS;
+						break;
+					}
+				}
+					
+			}
+			if (! p_in_req.empty(this)){
+				getRequest();
+				if(m_req.getCmd()==cmd_t.INVAL){
+					r_fsm_prev_state=FsmState.FSM_IDLE;
+					r_fsm_state=FsmState.FSM_INVAL;
+					break;
+				}
+			}
+		case FSM_MISS:
+			r_fsm_prev_state=FsmState.FSM_MISS;
+			LineState state = new LineState();
+			CacheAccessResult result;
+			
+			if (r_cmd_req == cmd_t.READ_WORD){
+				result=m_cache_l1.readSelect(m_iss_req.getAddress());
+				if(!result.victimDirty){
+				sendRequest(m_iss_req.getAddress(), cmd_t.READ_LINE, null);
+				r_cmd_req = cmd_t.READ_LINE;
+				r_fsm_state = FsmState.FSM_MISS_WAIT;
+			}else{
+					r_wb_addr = m_iss_req.getAddress();
+					r_wb_buf = m_iss_req.getData();
+					r_fsm_state= FsmState.FSM_WRITE_BACK;
+				}
+				
+			}else{
+				 m_cache_l1.readDir(m_iss_req.getAddress(), state);
+				if(state.state == cacheSlotState.VALID){
+					sendRequest(m_iss_req.getAddress(), cmd_t.GETM, null);
+					r_cmd_req= cmd_t.GETM;
+					r_fsm_state = FsmState.FSM_MISS_WAIT;
+				}else{
+					result=m_cache_l1.readSelect(m_iss_req.getAddress());
+					if (result.victimDirty){
+						r_wb_addr = m_iss_req.getAddress();
+						r_wb_buf = m_iss_req.getData();
+						r_fsm_state = FsmState.FSM_WRITE_BACK;
+					}else{
+						sendRequest(m_iss_req.getAddress(), cmd_t.GETM_LINE, null);
+						r_cmd_req = cmd_t.GETM_LINE;
+						r_fsm_state=FsmState.FSM_MISS_WAIT;
+					}
+				}
+			}
+				break;
+		case FSM_MISS_WAIT:
+			r_fsm_prev_state=FsmState.FSM_MISS_WAIT;
+			if(r_rsp_miss_ok){
+				if (m_rsp.getCmd() == cmd_t.RSP_READ_LINE_EX){
+				m_cache_l1.setLine(m_iss_req.getAddress(), m_rsp.getData(), true);
+				}else{
+					if (m_rsp.getCmd() == cmd_t.RSP_READ_LINE){
+						m_cache_l1.setLine(m_iss_req.getAddress(), m_rsp.getData(), false);
+					}else{
+						m_cache_l1.setLine(m_iss_req.getAddress(), m_rsp.getData(), true);
+					}
+				}
+				r_rsp_miss_ok=false;
+				if(r_cmd_req==cmd_t.GETM || r_cmd_req == cmd_t.GETM_LINE){
+					r_fsm_prev_state=FsmState.FSM_MISS_WAIT;
+					r_fsm_state= FsmState.FSM_WRITE_UPDATE;
+				}else{
+					sendIssResponse(m_iss_req.getAddress(), cmd_t.RSP_READ_WORD, 
+							m_rsp.getData().get(((int)m_iss_req.getAddress() % m_words)));
+				r_fsm_state = FsmState.FSM_IDLE;	
+				}
+			}
+			
+			if (p_in_req.empty(this)) {
+				getRequest();
+				if(m_req.getCmd()==cmd_t.INVAL){
+					r_fsm_state=FsmState.FSM_INVAL;
+				}
+			}
+		case FSM_WRITE_UPDATE:
+			r_fsm_prev_state=FsmState.FSM_WRITE_UPDATE;
+			if (true) {
+				LineState state_update = new LineState();
+				//state_update.exclu = false;
+				m_cache_l1.readDir(m_iss_req.getAddress(), state_update);
+				state_update.dirty = true;
+				m_cache_l1.writeDir(m_iss_req.getAddress(), state_update);
+				sendIssResponse(m_iss_req.getAddress(), cmd_t.RSP_WRITE_WORD, 
+						1);
+				r_fsm_state=FsmState.FSM_IDLE;	
+			}
+		case FSM_INVAL:
+			LineState state_inval =  new LineState();
+			List<Long> data = new ArrayList<Long>();
+			m_cache_l1.read(m_req.getAddress(), data,state_inval);
+			if (m_req.getCmd() == cmd_t.INVAL){
+				m_cache_l1.inval(m_req.getAddress(), true);
+				if(state_inval.dirty){
+				
+					sendResponse(m_req.getAddress(), m_req.getSrcid(), cmd_t.RSP_INVAL_CLEAN, data);
+				}else{
+					sendResponse(m_req.getAddress(), m_req.getSrcid(), cmd_t.RSP_INVAL_DIRTY, data);
+				}
+					
+			}else{ //INVAL_RO
+				m_cache_l1.inval(m_req.getAddress(), false);
+				
+				if (state_inval.dirty){
+					sendResponse(m_req.getAddress(), m_req.getSrcid(), cmd_t.RSP_INVAL_RO_DIRTY, data);
+				}else{
+					sendResponse(m_req.getAddress(), m_req.getSrcid(), cmd_t.RSP_INVAL_RO_CLEAN, data);
+				}
+			}
+			r_fsm_state = r_fsm_prev_state;
+			r_fsm_prev_state= FsmState.FSM_INVAL;
+		case FSM_WRITE_BACK:
+			r_fsm_prev_state = FsmState.FSM_WRITE_BACK;
+			if(r_current_wb){
+				//NOP
+			}else{
+				r_current_wb = true;
+				sendRequest(r_wb_addr, cmd_t.WRITE_LINE, r_wb_buf);
+				m_cache_l1.inval(r_wb_addr, true);
+				r_fsm_state = FsmState.FSM_MISS;
+			}
+			/* Massine */
 		
 		default:
 			assert (false);
@@ -267,7 +423,6 @@ public class L1MesiController implements L1Controller {
 		return r_srcid;
 	}
 	
-
 	public String getName() {
 		return m_name;
 	}

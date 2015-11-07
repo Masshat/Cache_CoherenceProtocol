@@ -167,7 +167,72 @@ public class MemMesiController implements MemController {
 	public void simulate1Cycle() {
 
 		switch (r_fsm_state) {
-			/* To complete */
+			/* Massine */
+		case FSM_IDLE:
+			if (!p_in_req.empty(this)){
+				getRequest();
+				switch (m_req.getCmd()){
+				case READ_LINE:
+					r_fsm_state = FsmState.FSM_READ_LINE;
+					break;
+				case WRITE_LINE: 
+					r_fsm_state = FsmState.FSM_WRITE_LINE;
+					r_rsp_type = cmd_t.INVAL_RO;
+					break;
+				case GETM :
+					r_fsm_state = FsmState.FSM_GETM;
+					r_rsp_type = cmd_t.INVAL;
+					break;
+				case GETM_LINE:
+					r_fsm_state = FsmState.FSM_GETM;
+					r_rsp_type = cmd_t.INVAL;
+					break;
+				}
+			}
+			break;
+		case FSM_READ_LINE:
+			if (m_ram.isExclu(m_req.getAddress())){
+				r_rsp_type = cmd_t.INVAL;
+				r_fsm_state = FsmState.FSM_INVAL;
+			}else{
+				m_ram.addCopy(m_req.getAddress(), m_req.getSrcid());
+				r_fsm_state = FsmState.FSM_RSP_READ;
+			}
+			break;
+		case FSM_RSP_READ:
+			if(m_ram.isExclu(m_req.getAddress())){
+			sendResponse(m_req.getAddress(), m_req.getSrcid(), cmd_t.RSP_READ_LINE_EX,
+					m_ram.getLine(m_req.getAddress()));
+			}else{
+			sendResponse(m_req.getAddress(), m_req.getSrcid(), cmd_t.RSP_READ_LINE,
+					m_ram.getLine(m_req.getAddress()));
+			}
+			r_fsm_state = FsmState.FSM_IDLE;
+			break;
+		case FSM_WRITE_LINE:
+			m_ram.writeLine(m_req.getAddress(), m_ram.getLine(m_req.getAddress()));
+			r_fsm_state= FsmState.FSM_DIR_UPDATE;
+			break;
+		case FSM_GETM:
+			if (m_ram.hasOtherCopy(m_req.getAddress(), m_req.getSrcid())){
+				r_fsm_state= FsmState.FSM_INVAL;
+			}else{
+				r_fsm_state=FsmState.FSM_DIR_UPDATE;
+			}
+			break;
+		case FSM_RSP_GETM:
+			if(m_req.getCmd()== cmd_t.GETM){
+			sendResponse(m_req.getAddress(), m_req.getSrcid(), cmd_t.RSP_GETM, 
+					m_ram.getLine(m_req.getAddress()));
+		}else{
+			sendResponse(m_req.getAddress(), m_req.getSrcid(), cmd_t.RSP_GETM_LINE, 
+					m_ram.getLine(m_req.getAddress()));
+		}
+			r_fsm_state= FsmState.FSM_IDLE;
+			break;
+		case FSM_INVAL:
+			
+			/* Massine */
 		
 		default:
 			assert (false);
