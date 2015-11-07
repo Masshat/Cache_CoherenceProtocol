@@ -195,20 +195,27 @@ public class MemMesiController implements MemController {
 				r_rsp_type = cmd_t.INVAL;
 				r_fsm_state = FsmState.FSM_INVAL;
 			}else{
-				m_ram.addCopy(m_req.getAddress(), m_req.getSrcid());
+				//m_ram.addCopy(m_req.getAddress(), m_req.getSrcid());
+				//r_fsm_state = FsmState.FSM_RSP_READ;
 				r_fsm_state = FsmState.FSM_RSP_READ;
 			}
 			break;
-		case FSM_RSP_READ:
+			
+		case FSM_RSP_READ: 
+			//pour les read lines j'ai décider d'update le directorie ici pour simpler FSM du controlleur mémoire
 			if(m_ram.isExclu(m_req.getAddress())){
 			sendResponse(m_req.getAddress(), m_req.getSrcid(), cmd_t.RSP_READ_LINE_EX,
 					m_ram.getLine(m_req.getAddress()));
+			m_ram.setState(m_req.getAddress(), BlockState.EXCLUSIVE);
 			}else{
 			sendResponse(m_req.getAddress(), m_req.getSrcid(), cmd_t.RSP_READ_LINE,
 					m_ram.getLine(m_req.getAddress()));
+			m_ram.setState(m_req.getAddress(), BlockState.VALID);
 			}
+			m_ram.addCopy(m_req.getAddress(), m_req.getSrcid());
 			r_fsm_state = FsmState.FSM_IDLE;
 			break;
+			
 		case FSM_WRITE_LINE:
 			m_ram.writeLine(m_req.getAddress(), m_ram.getLine(m_req.getAddress()));
 			r_fsm_state= FsmState.FSM_DIR_UPDATE;
@@ -222,8 +229,7 @@ public class MemMesiController implements MemController {
 			break;
 		case FSM_RSP_GETM:
 			if(m_req.getCmd()== cmd_t.GETM){
-			sendResponse(m_req.getAddress(), m_req.getSrcid(), cmd_t.RSP_GETM, 
-					m_ram.getLine(m_req.getAddress()));
+			sendResponse(m_req.getAddress(), m_req.getSrcid(), cmd_t.RSP_GETM, null);
 		}else{
 			sendResponse(m_req.getAddress(), m_req.getSrcid(), cmd_t.RSP_GETM_LINE, 
 					m_ram.getLine(m_req.getAddress()));
@@ -231,7 +237,65 @@ public class MemMesiController implements MemController {
 			r_fsm_state= FsmState.FSM_IDLE;
 			break;
 		case FSM_INVAL:
-			
+			if (m_req.getCmd()== cmd_t.READ_LINE) {
+				m_rsp_copies_list = m_ram.getCopies(m_req.getAddress());
+			}
+			if (m_req.getCmd()== cmd_t.GETM || m_req.getCmd() == cmd_t.GETM_LINE) {
+				m_rsp_copies_list = m_ram.getCopies(m_req.getAddress());
+				m_rsp_copies_list.remove(m_req.getSrcid()); // je m'enleve de la liste bien sur.
+			}
+			if (m_rsp_copies_list.nbCopies()==0) {
+				r_fsm_state= FsmState.FSM_RSP_READ; //pour ce cas la j'update le Directory dans FSM_RSP_READ
+			}else{
+			r_fsm_state= FsmState.FSM_INVAL_SEND; //sinon j'envoie mes invals.
+			}
+			break;
+		case FSM_INVAL_SEND:
+			if (m_req.getCmd()== cmd_t.READ_LINE) {
+				int nb = m_req_copies_list.getNextOwner();
+				sendRequest(m_req.getAddress(), nb, cmd_t.INVAL_RO);
+				m_req_copies_list.remove(nb);
+				m_rsp_copies_list.add(nb);
+				if(m_req_copies_list.nbCopies() == 0) r_fsm_state=FsmState.FSM_INVAL_WAIT;
+			}else{
+				int nb=m_req_copies_list.getNextOwner();
+				sendRequest(m_req.getAddress(), nb, cmd_t.INVAL);
+				m_req_copies_list.remove(nb);
+				m_rsp_copies_list.add(nb);
+				if(m_req_copies_list.nbCopies() == 0) r_fsm_state=FsmState.FSM_INVAL_WAIT;
+				}
+		case FSM_INVAL_WAIT:
+			if (!p_in_rsp.empty(this)) {
+				getResponse();
+				if(m_rsp.getCmd()== cmd_t.RSP_INVAL_DIRTY || m_rsp.getCmd()== cmd_t.RSP_INVAL_RO_DIRTY){
+					if (m_req.getAddress() == m_rsp.getAddress()){
+						m_ram.writeLine(m_req.getAddress(), m_rsp.getData());
+						r_write_back = true;
+					}
+				}
+				if(m_rsp.getCmd()== cmd_t.RSP_INVAL_CLEAN || m_rsp.getCmd()== cmd_t.RSP_INVAL_RO_CLEAN){
+					m_rsp_copies_list.remove(m_rsp.getSrcid());
+				}
+				if (m_rsp_copies_list.nbCopies() == 0){
+					if (m_req.getCmd() == cmd_t.READ_LINE) {
+						r_fsm_state= FsmState.FSM_RSP_READ;
+					}else{
+						r_fsm_state = FsmState.FSM_DIR_UPDATE;
+					}
+				}
+			}
+		case FSM_DIR_UPDATE:
+			if (m_req.getCmd() == cmd_t.WRITE_LINE ) {
+				m_ram.removeCopy(m_req.getAddress(), m_req.getSrcid());
+				r_fsm_state = FsmState.FSM_IDLE;
+			}
+			if (m_req.getCmd() ==  cmd_t.GETM || m_req.getCmd() ==  cmd_t.GETM_LINE) {
+				m_ram.removeAllCopies(m_req.getAddress());
+				m_ram.addCopy(m_req.getAddress(), m_req.getSrcid());
+				m_ram.setState(m_req.getAddress(), BlockState.EXCLUSIVE);
+				r_fsm_state= FsmState.FSM_RSP_GETM;
+			}
+			break;
 			/* Massine */
 		
 		default:
