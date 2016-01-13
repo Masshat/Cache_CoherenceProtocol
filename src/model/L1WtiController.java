@@ -27,6 +27,7 @@ public class L1WtiController implements L1Controller {
 		FSM_MISS,
 		FSM_SEND_WRITE,
 		FSM_MISS_WAIT,
+		FSM_SYNC,
 	}
 	
 	/**
@@ -38,6 +39,10 @@ public class L1WtiController implements L1Controller {
 	 */
 	private int r_procid;
 	
+	/**
+	 * register added when implementing the SYNC
+	  */
+	private int write_en_cours;
 	/**
 	 * Registers for saving information between states
 	 */
@@ -163,6 +168,15 @@ public class L1WtiController implements L1Controller {
 					l, // data
 					0xF); // be
 		}
+		else if (type == cmd_t.RSP_SYNC){
+			req = new Request(addr, r_srcid, // srcid
+					r_procid, // targetid (srcid of the proc)
+					type, // cmd
+					m_cycle, // start cycle
+					0, // max_duration
+					l, // data
+					0xF); // be
+		}
 		else {
 			req = null; // avoid error
 			assert (false);
@@ -242,8 +256,104 @@ public class L1WtiController implements L1Controller {
 	public void simulate1Cycle() {
 		
 		switch (r_fsm_state) {
-			/* To complete */
+			/* Massine */
+		case FSM_IDLE:
+			r_fsm_prev_state = FsmState.FSM_IDLE;
+			if(!p_in_iss_req.empty(this)){
+				getIssRequest();
+				if (m_iss_req.getCmd()== cmd_t.READ_WORD){
+					LineState state = new LineState();
+					List<Long> data = new ArrayList<Long>();
+
+					if(m_cache_l1.read(m_iss_req.getAddress(), data , state)){ // hit
+						sendIssResponse(m_iss_req.getAddress(), cmd_t.RSP_READ_WORD, data.get(0));
+					}else{
+						r_fsm_state = FsmState.FSM_MISS;
+						break;
+					}
+				}
+				else if (m_iss_req.getCmd() == cmd_t.WRITE_WORD){
+					LineState state = new LineState();
+					m_cache_l1.readDir(m_iss_req.getAddress(), state);
+					
+					if(state.state==cacheSlotState.VALID){
+						m_cache_l1.write(m_iss_req.getAddress(), 
+								m_iss_req.getData().get(0), m_iss_req.getBe());
+					}
+						r_fsm_state =  FsmState.FSM_SEND_WRITE;
+						break;
+				}
+				else if(m_iss_req.getCmd() == cmd_t.SYNC){
+						if(write_en_cours == 0){
+							sendIssResponse(m_iss_req.getAddress(), cmd_t.RSP_SYNC, 0);
+						}else{
+							r_fsm_state = FsmState.FSM_SYNC;
+						}
+				}
+				break;
+			}
+			if(!p_in_req.empty(this)){
+				getRequest();
+				if(m_req.getCmd()==cmd_t.INVAL){
+					r_fsm_state = FsmState.FSM_INVAL;
+					break;
+				}
+			}
+			break;
+		case FSM_SEND_WRITE:
+			r_fsm_prev_state = FsmState.FSM_SEND_WRITE;
+			sendRequest(m_iss_req.getAddress(), cmd_t.WRITE_WORD, m_iss_req.getData().get(0), 
+					m_iss_req.getBe());
+			write_en_cours++;
+			sendIssResponse(m_iss_req.getAddress(), cmd_t.RSP_WRITE_WORD, 0);
+			r_fsm_state = FsmState.FSM_IDLE;
+			break;
+		case FSM_MISS:
+			r_fsm_prev_state = FsmState.FSM_MISS;
+			sendRequest(m_iss_req.getAddress(), cmd_t.READ_LINE, new Long (0), m_iss_req.getBe());
+			m_cache_l1.readSelect(m_iss_req.getAddress());
+			r_fsm_state = FsmState.FSM_MISS_WAIT;
+			break;
+		case FSM_MISS_WAIT:
+			r_fsm_prev_state = FsmState.FSM_MISS_WAIT;
+			if(!p_in_req.empty(this)){
+				getRequest();
+				if(m_req.getCmd()==cmd_t.INVAL){
+					r_fsm_state = FsmState.FSM_INVAL;
+					break;
+				}
+			}
+			if(r_rsp_miss_ok){
+			m_cache_l1.setLine(m_iss_req.getAddress(), m_rsp.getData(), true);
+			r_rsp_miss_ok=false;
+			sendIssResponse(m_iss_req.getAddress(), cmd_t.RSP_READ_WORD, 
+					m_rsp.getData().get(((int)m_iss_req.getAddress() % m_words) ));
+			r_fsm_state = FsmState.FSM_IDLE;
+			}
+			break;
+		case FSM_INVAL:
 		
+			m_cache_l1.inval(m_req.getAddress(), true);
+			sendResponse(m_req.getAddress(), m_req.getSrcid(), cmd_t.RSP_INVAL_CLEAN, null);
+			
+			//r_fsm_state= FsmState.FSM_IDLE;
+			r_fsm_state= r_fsm_prev_state;
+			break;
+		case FSM_SYNC:
+			r_fsm_prev_state = FsmState.FSM_SYNC;
+			if(!p_in_req.empty(this)){
+				getRequest();
+				if(m_req.getCmd()==cmd_t.INVAL){
+					r_fsm_state = FsmState.FSM_INVAL;
+					break;
+				}
+			}
+			if(write_en_cours == 0){
+				sendIssResponse(0,cmd_t.RSP_SYNC , 0);
+				r_fsm_state = FsmState.FSM_IDLE;
+			}
+			break;
+			/* Massine */
 		default:
 			assert(false);
 			break;
@@ -261,6 +371,7 @@ public class L1WtiController implements L1Controller {
 			}
 			else if (m_rsp.getCmd() == cmd_t.RSP_WRITE_WORD) {
 				// Nothing special to do
+				write_en_cours--;
 			}
 			else {
 				assert (false);

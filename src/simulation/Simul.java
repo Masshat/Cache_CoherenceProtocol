@@ -14,11 +14,12 @@ import view.Vue;
 public class Simul {
 	public static void main(String[] args) {
 		Dimension dim = new Dimension(1000, 800);
-		Topcell topcell = new Top1Proc1Ram();
+		Topcell topcell = new Top2Procs1Ram();
 		Vue vue = new Vue(dim);
 		new Controlleur(vue, topcell);
 
 		vue.setVisible(true);
 		vue.pack();
+		//vue.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 	}
 }

@@ -67,7 +67,6 @@ public class Ram {
 			i++;
 		}
 		
-
 		reset();
 	}
 	

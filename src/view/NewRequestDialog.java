@@ -37,6 +37,7 @@ public class NewRequestDialog extends JDialog implements ActionListener, Propert
 	private long address;
 	private int value;
 	private boolean reqIsRead = true;
+	private boolean reqIsSync = false;
 	private int delay = -1;
 	
 	private NewRequestListener listener;
@@ -54,7 +55,7 @@ public class NewRequestDialog extends JDialog implements ActionListener, Propert
 	private JLabel valueLabel = new JLabel("Value: ");
 	// private JLabel delayLabel = new JLabel("Delay (optionnal): ");
 	
-	private String [] reqTypes = { "Read", "Write" };
+	private String [] reqTypes = { "Read", "Write", "Sync" };
 	private String btnString1 = "Enter";
 	private String btnString2 = "Cancel";
 	
@@ -137,11 +138,16 @@ public class NewRequestDialog extends JDialog implements ActionListener, Propert
 		if (e.getSource() == cb) {
 			if (cb.getSelectedItem() == reqTypes[0]) {
 				reqIsRead = true;
+				reqIsSync = false;
 				valueTF.setEnabled(false);
 			}
 			else if (cb.getSelectedItem() == reqTypes[1]) {
 				reqIsRead = false;
+				reqIsSync = false;
 				valueTF.setEnabled(true);
+			}
+			else if (cb.getSelectedItem() == reqTypes[2]){
+				reqIsSync = true;
 			}
 			else {
 				assert (false);
@@ -211,6 +217,9 @@ public class NewRequestDialog extends JDialog implements ActionListener, Propert
 			}
 			else {
 				listener.createNewRequestWrite(address, value, delay);
+			}
+			if (reqIsSync){
+				listener.createNewRequestSync(delay);
 			}
 			setVisible(false);
 		}
