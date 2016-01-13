@@ -46,10 +46,7 @@ public class NewRequestListener implements ActionListener {
 		//System.out.println("   in createNewRequestWrite(" + addr + ", " + val + ") - (srcid " + srcid + ")");
 		controlleur.getTopcell().getProcessor(srcid).addWrite(addr, val);
 	}
-	public void createNewRequestSync(int delay) {
-		//System.out.println("   in createNewRequestWrite(" + addr + ", " + val + ") - (srcid " + srcid + ")");
-		controlleur.getTopcell().getProcessor(srcid).addSync();
-	}
+	
 	public int getSrcid() {
 		return srcid;
 	}
